@@ -47,7 +47,7 @@ DWORD CMemory::GetProcessID(const char* procName)
 	return procID;
 }
 
-bool CMemory::SuspendProcess(DWORD dwPID)
+bool CMemory::SuspendProcess()
 {
 	HANDLE hSnapShot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
 
@@ -63,7 +63,7 @@ bool CMemory::SuspendProcess(DWORD dwPID)
 	{
 		do
 		{
-			if (te.th32OwnerProcessID == dwPID)
+			if (te.th32OwnerProcessID == m_dwPID)
 			{
 				if (te.th32ThreadID == GetCurrentThreadId()) //磊变 力寇
 				{
@@ -87,7 +87,7 @@ bool CMemory::SuspendProcess(DWORD dwPID)
 	CloseHandle(hSnapShot);
 }
 
-bool CMemory::ResumeProcess(DWORD dwPID)
+bool CMemory::ResumeProcess()
 {
 	HANDLE hSnapShot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
 
@@ -103,7 +103,7 @@ bool CMemory::ResumeProcess(DWORD dwPID)
 	{
 		do
 		{
-			if (te.th32OwnerProcessID == dwPID)
+			if (te.th32OwnerProcessID == m_dwPID)
 			{
 				if (te.th32ThreadID == GetCurrentThreadId()) //磊变 力寇
 				{
@@ -178,20 +178,21 @@ void CMemory::Work()
 
 	WaitForUnpack();
 
-	SuspendProcess(GetCurrentProcessId());
+	SuspendProcess();
 
 	cout << "Process Suspend!!!" << endl;
 
 	MEMORY_BASIC_INFORMATION mbi;
-	VirtualQuery((LPVOID)EntryPoint, &mbi, sizeof(mbi));
+	VirtualQueryEx(m_hProcess, (LPVOID)EntryPoint, &mbi, sizeof(mbi));
 
 	DWORD dwProtect = 0;
-	VirtualProtect((LPVOID)EntryPoint, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &dwProtect);
+	VirtualProtectEx(m_hProcess, (LPVOID)EntryPoint, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &dwProtect);
 
 
 	system("pause");
 
-	VirtualProtect((LPVOID)EntryPoint, mbi.RegionSize, dwProtect, &dwProtect);
+	VirtualProtectEx(m_hProcess, (LPVOID)EntryPoint, mbi.RegionSize, dwProtect, &dwProtect);
 
-	ResumeProcess(GetCurrentProcessId());
+	ResumeProcess();
+
 }

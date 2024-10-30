@@ -10,8 +10,8 @@ private:
 	HANDLE m_hProcess;
 private:
 	DWORD GetProcessID(const char* procName);
-	bool SuspendProcess(DWORD dwPID);
-	bool ResumeProcess(DWORD dwPID);
+	bool SuspendProcess();
+	bool ResumeProcess();
 
 	inline DWORD GetProtection(DWORD dwAddress) const;
 
