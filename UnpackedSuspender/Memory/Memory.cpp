@@ -6,8 +6,7 @@ using namespace std;
 
 CMemory::CMemory(const char * szProcessName)
 {
-	m_hProcess = NULL;
-	m_dwPID = 0;
+	Release();
 	strcpy(m_szProcessName, szProcessName);
 }
 
@@ -18,6 +17,7 @@ CMemory::~CMemory()
 
 void CMemory::Release()
 {
+	m_dwEntryPoint = 0;
 	m_hProcess = NULL;
 	m_dwPID = 0;
 	ZeroMemory(m_szProcessName, MAX_PATH);
@@ -45,6 +45,30 @@ DWORD CMemory::GetProcessID(const char* procName)
 	}
 	CloseHandle(hSnap);
 	return procID;
+}
+
+DWORD CMemory::GetModuleBaseAddress(const char* modName)
+{
+	uintptr_t modBaseAddr = 0;
+	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, m_dwPID);
+	if (hSnap != INVALID_HANDLE_VALUE)
+	{
+		MODULEENTRY32 modEntry;
+		modEntry.dwSize = sizeof(modEntry);
+		if (Module32First(hSnap, &modEntry))
+		{
+			do
+			{
+				if (!_stricmp(modEntry.szModule, modName))
+				{
+					modBaseAddr = (uintptr_t)modEntry.modBaseAddr;
+					break;
+				}
+			} while (Module32Next(hSnap, &modEntry));
+		}
+	}
+	CloseHandle(hSnap);
+	return modBaseAddr;
 }
 
 bool CMemory::SuspendProcess()
@@ -154,7 +178,7 @@ inline void CMemory::WaitForUnpack() const
 {
 	while (true)
 	{
-		if (GetByte(EntryPoint) == (BYTE)0x55 && GetProtection(EntryPoint) == 0x20)
+		if (GetByte(m_dwEntryPoint) == (BYTE)0x55 && GetProtection(m_dwEntryPoint) == 0x20)
 		{
 			break;
 		}
@@ -176,22 +200,31 @@ void CMemory::Work()
 
 	m_hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, m_dwPID);
 
+	while (true)
+	{
+		m_dwEntryPoint = GetModuleBaseAddress(m_szProcessName) + 0x1000;
+		if (m_dwEntryPoint > 0x1000)
+		{
+			break;
+		}
+	}
+
 	WaitForUnpack();
 
 	SuspendProcess();
 
-	cout << "Process Suspend!!!" << endl;
+	printf("Suspend!!\nEntryPoint : %0x\n", m_dwEntryPoint);
 
 	MEMORY_BASIC_INFORMATION mbi;
-	VirtualQueryEx(m_hProcess, (LPVOID)EntryPoint, &mbi, sizeof(mbi));
+	VirtualQueryEx(m_hProcess, (LPVOID)m_dwEntryPoint, &mbi, sizeof(mbi));
 
 	DWORD dwProtect = 0;
-	VirtualProtectEx(m_hProcess, (LPVOID)EntryPoint, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &dwProtect);
+	VirtualProtectEx(m_hProcess, (LPVOID)m_dwEntryPoint, mbi.RegionSize, PAGE_EXECUTE_READWRITE, &dwProtect);
 
 
 	system("pause");
 
-	VirtualProtectEx(m_hProcess, (LPVOID)EntryPoint, mbi.RegionSize, dwProtect, &dwProtect);
+	VirtualProtectEx(m_hProcess, (LPVOID)m_dwEntryPoint, mbi.RegionSize, dwProtect, &dwProtect);
 
 	ResumeProcess();
 
